@@ -11,6 +11,11 @@ LOGGING_CONF = {
             "formatter": "long",
             "stream": "ext://sys.stdout"
         },
+        "logfile": {
+            "class": "logging.FileHandler",
+            "formatter": "long",
+            "filename": "playbot.log"
+        },
         "loop_stderr": {
             "class": "logging.StreamHandler",
             "formatter": "long",

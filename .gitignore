@@ -1,2 +1,5 @@
 game.db
 *.sublime-*
+__pycache__
+conf.json
+playbot.log

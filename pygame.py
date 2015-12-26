@@ -11,7 +11,6 @@ from gametime import TimeCounter
 from log import LOGGING_CONF
 
 
-logging.config.dictConfig(LOGGING_CONF)
 log = logging.getLogger(__name__)
 
 
@@ -105,4 +104,16 @@ def main():
 
 
 if __name__ == '__main__':
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser()
+    parser.add_argument('-l', '--logfile', action='store_true', help='Log file')
+
+    args = parser.parse_args()
+
+    if args.logfile:
+        LOGGING_CONF['root']['handlers'] = ['logfile']
+
+    logging.config.dictConfig(LOGGING_CONF)
+
     main()
