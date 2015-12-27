@@ -22,7 +22,7 @@ def get_time_string(seconds):
     return '%0.2d:%02d:%02d' % (hours, minutes, seconds)
 
 
-class Bernard(object):
+class Bot(object):
 
     def __init__(self):
         self.client = discord.Client(loop=loop)
@@ -100,7 +100,7 @@ class Bernard(object):
 
 
 def main():
-    bot = Bernard()
+    bot = Bot()
 
     loop.add_signal_handler(SIGINT, bot.stop_signal)
     loop.add_signal_handler(SIGTERM, bot.stop_signal)

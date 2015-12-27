@@ -14,7 +14,7 @@ LOGGING_CONF = {
         "logfile": {
             "class": "logging.FileHandler",
             "formatter": "long",
-            "filename": "playbot.log"
+            "filename": "bot.log"
         },
         "loop_stderr": {
             "class": "logging.StreamHandler",
