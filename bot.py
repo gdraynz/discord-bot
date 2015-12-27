@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-
 import asyncio
+from datetime import datetime
 import discord
 import json
 import logging
@@ -9,6 +9,7 @@ from signal import SIGINT, SIGTERM
 
 from gametime import TimeCounter
 from log import LOGGING_CONF
+# from reminder import ReminderManager
 
 
 log = logging.getLogger(__name__)
@@ -27,10 +28,14 @@ class Bot(object):
     def __init__(self):
         self.client = discord.Client(loop=loop)
         self.counter = TimeCounter(loop=loop)
+        # self.reminder = ReminderManager(loop=loop)
 
         self.client.event(self.on_member_update)
         self.client.event(self.on_ready)
         self.client.event(self.on_message)
+
+        self._start_time = datetime.now()
+        self._commands = 0
 
     async def start(self):
         with open('conf.json', 'r') as f:
@@ -41,6 +46,7 @@ class Bot(object):
     async def stop(self):
         await self.client.close()
         await self.counter.close()
+        # await self.reminder.close()
 
     def stop_signal(self):
         log.info('Closing')
@@ -75,14 +81,18 @@ class Bot(object):
 
         cmd = 'command_' + data[1]
         if hasattr(self, cmd):
+            self._commands += 1
             await getattr(self, cmd)(message)
 
     async def command_help(self, message):
         await self.client.send_message(
             message.channel,
-            "Available commands:\n"
-            "`help`     show this help message\n"
-            "`played`   show your game time\n"
+            "Available commands, all preceded by `!go`:\n"
+            "`help     : show this help message`\n"
+            "`stats    : show the bot's statistics`\n"
+            "`source   : show the bot's source code (github)`\n"
+            "`played   : show your game time`\n"
+            # "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`"
         )
 
     async def command_played(self, message):
@@ -96,6 +106,28 @@ class Bot(object):
         else:
             msg = "I don't remember you playing anything :("
 
+        await self.client.send_message(message.channel, msg)
+
+    # async def command_reminder(self, message):
+    #     params = message.content.split(' ')
+    #     if len(params) <= 2:
+    #         return
+
+    #     time = params[2]
+    #     msg = params[3:] if len(params) >= 4 else 'ping!'
+
+    #     self.reminder.new(message.author.id, time, msg)
+
+    async def command_source(self, message):
+        await self.client.send_message(
+            message.channel, 'https://github.com/gdraynz/discord-bot'
+        )
+
+    async def command_stats(self, message):
+        msg = 'General statistics:\n'
+        msg += '`Uptime            : %s`\n' % get_time_string((datetime.now() - self._start_time).total_seconds())
+        msg += '`Commands answered : %d`\n' % self._commands
+        msg += '`Users playing     : %d`\n' % len(self.counter.playing)
         await self.client.send_message(message.channel, msg)
 
 
