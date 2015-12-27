@@ -1,9 +1,8 @@
 import asyncio
 from datetime import datetime
-import json
 import logging
 
-import pickledb
+import yolodb
 
 
 log = logging.getLogger(__name__)
@@ -13,44 +12,16 @@ class TimeCounter(object):
 
     def __init__(self, loop=None):
         self.loop = loop or asyncio.get_event_loop()
-        self.db = None
+        self.db = yolodb.load('gametime.db')
         self.playing = dict()
 
-        self.request_save = False
-        self._save_future = asyncio.ensure_future(self._schedule_save())
-        asyncio.ensure_future(self._load_db())
-
-    async def _load_db(self):
-        self.db = await self._async_load('game.db')
-
-    async def _async_load(self, db):
-        return (await self.loop.run_in_executor(None, pickledb.load, db, False))
-
-    async def _async_dump(self):
-        return (await self.loop.run_in_executor(None, self.db.dump))
-
-    async def _schedule_save(self):
-        self.request_save = False
-
-        try:
-            await asyncio.sleep(5)
-        except asyncio.CancelledError:
-            log.warning('save schedule cancelled')
-            await self._async_dump()
-            return
-
-        if self.request_save:
-            await self._async_dump()
-
-        self._save_future = asyncio.ensure_future(self._schedule_save())
-
     def get(self, user_id):
-        return json.loads(self.db.get(user_id) or "{}")
+        return self.db.get(user_id)
 
-    def set(self, user_id, game, time):
-        played = self.get(user_id)
+    def put(self, user_id, game, time):
+        played = self.get(user_id) or {}
         played[game] = played.get(game, 0) + time
-        self.db.set(user_id, json.dumps(played))
+        self.db.put(user_id, played)
 
     async def _count_task(self, user_id, game_name):
         start = datetime.utcnow()
@@ -63,8 +34,7 @@ class TimeCounter(object):
         # Total played
         total = (datetime.utcnow() - start).seconds
         # Add new game time
-        self.set(user_id, game_name, total)
-        self.request_save = True
+        self.put(user_id, game_name, total)
 
     def start_counting(self, user_id, game_name):
         if user_id not in self.playing:
@@ -80,9 +50,7 @@ class TimeCounter(object):
             self.playing[user_id]['event'].set()
 
     async def close(self):
-        if self._save_future:
-            self._save_future.cancel()
-            await self._save_future
+        await self.db.close()
         if self.playing:
             tasks = [p['task'] for p in self.playing.values()]
             for p in self.playing.values():
