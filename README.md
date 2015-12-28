@@ -5,8 +5,9 @@ A port of my other bot [gobot](https://github.com/gdraynz/gobot) in python, a la
 ## Features
 
 * `!go played` shows your total game time
+* `!go reminder` reminds you of something in some time
 
 ## To do
 
-* `!go reminder` reminds you of something in some time
-
+* Reminder management (list, delete)
+* Gametime management (at least delete, + admin tool ?)
