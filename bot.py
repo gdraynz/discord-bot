@@ -9,7 +9,7 @@ from signal import SIGINT, SIGTERM
 
 from gametime import TimeCounter
 from log import LOGGING_CONF
-# from reminder import ReminderManager
+from reminder import ReminderManager
 
 
 log = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class Bot(object):
     def __init__(self):
         self.client = discord.Client(loop=loop)
         self.counter = TimeCounter(loop=loop)
-        # self.reminder = ReminderManager(loop=loop)
+        self.reminder = ReminderManager(self.client, loop=loop)
 
         self.client.event(self.on_member_update)
         self.client.event(self.on_ready)
@@ -46,7 +46,7 @@ class Bot(object):
     async def stop(self):
         await self.client.close()
         await self.counter.close()
-        # await self.reminder.close()
+        await self.reminder.close()
 
     def stop_signal(self):
         log.info('Closing')
@@ -68,7 +68,8 @@ class Bot(object):
         for server in self.client.servers:
             for member in server.members:
                 if member.game:
-                    self.counter.start_counting(member.id, member.game.name)
+                    pass
+                    # self.counter.start_counting(member.id, member.game.name)
         log.info('everything ready')
 
     async def on_message(self, message):
@@ -82,9 +83,9 @@ class Bot(object):
         cmd = 'command_' + data[1]
         if hasattr(self, cmd):
             self._commands += 1
-            await getattr(self, cmd)(message)
+            await getattr(self, cmd)(message, *data[2:])
 
-    async def command_help(self, message):
+    async def command_help(self, message, *args):
         await self.client.send_message(
             message.channel,
             "Available commands, all preceded by `!go`:\n"
@@ -92,10 +93,10 @@ class Bot(object):
             "`stats    : show the bot's statistics`\n"
             "`source   : show the bot's source code (github)`\n"
             "`played   : show your game time`\n"
-            # "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`"
+            "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`"
         )
 
-    async def command_played(self, message):
+    async def command_played(self, message, *args):
         msg = ''
         played = self.counter.get(message.author.id)
 
@@ -108,17 +109,21 @@ class Bot(object):
 
         await self.client.send_message(message.channel, msg)
 
-    # async def command_reminder(self, message):
-    #     params = message.content.split(' ')
-    #     if len(params) <= 2:
-    #         return
+    async def command_reminder(self, message, *args):
+        if not args:
+            return
 
-    #     time = params[2]
-    #     msg = params[3:] if len(params) >= 4 else 'ping!'
+        time = args[0]
+        msg = ' '.join(args[1:]) if len(args) >= 2 else 'ping!'
 
-    #     self.reminder.new(message.author.id, time, msg)
+        if self.reminder.new(message.author.id, time, msg):
+            response = 'Aight! I will ping you in %s' % time
+        else:
+            response = 'I could not understand that :('
 
-    async def command_source(self, message):
+        await self.client.send_message(message.channel, response)
+
+    async def command_source(self, message, *args):
         await self.client.send_message(
             message.channel, 'https://github.com/gdraynz/discord-bot'
         )

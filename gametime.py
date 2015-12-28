@@ -16,10 +16,10 @@ class TimeCounter(object):
         self.playing = dict()
 
     def get(self, user_id):
-        return self.db.get(user_id)
+        return self.db.get(user_id, {})
 
     def put(self, user_id, game, time):
-        played = self.get(user_id) or {}
+        played = self.db.get(user_id, {})
         played[game] = played.get(game, 0) + time
         self.db.put(user_id, played)
 
