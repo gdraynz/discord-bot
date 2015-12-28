@@ -87,6 +87,9 @@ class ReminderManager(object):
         self._prepare_reminder(new)
         return True
 
+    def get_reminders(self, user_id):
+        return self.db.get(user_id, {})
+
     def _pop_reminder(self, author_id, reminder_id):
         reminders = self.db.get(author_id, {})
         del reminders[reminder_id]

@@ -13,7 +13,13 @@ class TimeCounter(object):
     def __init__(self, loop=None):
         self.loop = loop or asyncio.get_event_loop()
         self.db = yolodb.load('gametime.db')
+        if not self.db.get('start_time'):
+            self.db.put('start_time', int(datetime.now().timestamp()))
         self.playing = dict()
+
+    @property
+    def starttime(self):
+        return int(datetime.now().timestamp()) - self.db.get('start_time')
 
     def get(self, user_id):
         return self.db.get(user_id, {})

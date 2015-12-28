@@ -101,7 +101,7 @@ class Bot(object):
         played = self.counter.get(message.author.id)
 
         if played:
-            msg += "As far as I'm aware, you played:\n"
+            msg += "Since %s, you played:\n" % get_time_string(self.counter.starttime)
             for game, time in played.items():
                 msg += '`%s : %s`\n' % (game, get_time_string(time))
         else:
@@ -113,6 +113,7 @@ class Bot(object):
         if not args:
             return
 
+        # New reminder
         time = args[0]
         msg = ' '.join(args[1:]) if len(args) >= 2 else 'ping!'
 
