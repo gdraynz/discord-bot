@@ -5,6 +5,7 @@ import discord
 import json
 import logging
 import logging.config
+import re
 from signal import SIGINT, SIGTERM
 
 from gametime import TimeCounter
@@ -29,6 +30,8 @@ class Bot(object):
         self.client = discord.Client(loop=loop)
         self.counter = TimeCounter(loop=loop)
         self.reminder = ReminderManager(self.client, loop=loop)
+
+        self.invite_regexp = re.compile(r'(?:https?\:\/\/)?discord\.gg\/(.+)')
 
         self.client.event(self.on_member_update)
         self.client.event(self.on_ready)
@@ -73,6 +76,16 @@ class Bot(object):
         log.info('everything ready')
 
     async def on_message(self, message):
+        # If invite in private message, join server
+        if message.channel.is_private:
+            match = self.invite_regexp.match(message.content)
+            if match and match.group(1):
+                await self.client.accept_invite(match.group(1))
+                log.info('Joined server, invite %s', match.group(1))
+                await self.client.send_message(
+                    message.author, 'Joined it, thanks :)')
+                return
+
         if not message.content.startswith('!go'):
             return
 
