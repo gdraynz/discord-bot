@@ -114,7 +114,8 @@ class Bot(object):
         played = self.counter.get(message.author.id)
 
         if played:
-            msg += "Since %s, you played:\n" % get_time_string(self.counter.starttime)
+            msg += "As far as i'm aware, you played:\n"
+            # msg += "Since %s, you played:\n" % get_time_string(self.counter.starttime)
             for game, time in played.items():
                 msg += '`%s : %s`\n' % (game, get_time_string(time))
         else:
