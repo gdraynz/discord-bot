@@ -32,9 +32,9 @@ class TimeCounter(object):
     async def _count_task(self, user_id, game_name):
         start = datetime.utcnow()
 
-        log.info('Waiting for %s on %s', user_id, game_name)
+        log.debug('Waiting for %s on %s', user_id, game_name)
         await self.playing[user_id]['event'].wait()
-        log.info('%s done playing %s', user_id, game_name)
+        log.debug('%s done playing %s', user_id, game_name)
 
         del self.playing[user_id]
         # Total played
@@ -48,8 +48,7 @@ class TimeCounter(object):
                 'event': asyncio.Event(),
                 'task': asyncio.ensure_future(self._count_task(user_id, game_name))
             }
-        else:
-            log.warning('user %s already playing something', user_id)
+        # else do not take that into account. One game per user.
 
     def done_counting(self, user_id):
         if user_id in self.playing:

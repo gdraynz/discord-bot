@@ -197,8 +197,13 @@ class Bot(object):
         )
 
     async def command_stats(self, message):
+        users = 0
+        for s in self.client.servers:
+            users += len(s.members)
+
         msg = 'General statistics:\n'
         msg += '`Uptime            : %s`\n' % get_time_string((datetime.now() - self._start_time).total_seconds())
+        msg += '`Users in touch    : %s in %s servers`\n' % (users, len(self.client.servers))
         msg += '`Commands answered : %d`\n' % self._commands
         msg += '`Users playing     : %d`\n' % len(self.counter.playing)
         await self.client.send_message(message.channel, msg)
