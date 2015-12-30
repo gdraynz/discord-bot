@@ -26,7 +26,25 @@ def get_time_string(seconds):
 
 class Bot(object):
 
+    """
+    Make use of a conf.json file at work directory:
+    {
+        "email": "my.email@server.com",
+        "password": "my_password",
+        "admin_id": "id_of_the_bot_admin",
+        "prefix": "!go"
+    }
+    """
+
     def __init__(self):
+
+        with open('conf.json', 'r') as f:
+            conf = json.loads(f.read())
+        self._email = conf['email']
+        self._password = conf['password']
+        self._admin_id = conf['admin_id']
+        self._prefix = conf['prefix']
+
         self.client = discord.Client(loop=loop)
         self.counter = TimeCounter(loop=loop)
         self.reminder = ReminderManager(self.client, loop=loop)
@@ -41,9 +59,7 @@ class Bot(object):
         self._commands = 0
 
     async def start(self):
-        with open('conf.json', 'r') as f:
-            creds = json.loads(f.read())
-        await self.client.login(creds['email'], creds['password'])
+        await self.client.login(self._email, self._password)
         await self.client.connect()
 
     async def stop(self):
@@ -71,8 +87,7 @@ class Bot(object):
         for server in self.client.servers:
             for member in server.members:
                 if member.game:
-                    pass
-                    # self.counter.start_counting(member.id, member.game.name)
+                    self.counter.start_counting(member.id, member.game.name)
         log.info('everything ready')
 
     async def on_message(self, message):
@@ -86,17 +101,36 @@ class Bot(object):
                     message.author, 'Joined it, thanks :)')
                 return
 
-        if not message.content.startswith('!go'):
+        if not message.content.startswith(self._prefix):
             return
 
         data = message.content.split(' ')
         if len(data) <= 1:
+            log.debug('no command in message')
             return
 
         cmd = 'command_' + data[1]
-        if hasattr(self, cmd):
-            self._commands += 1
-            await getattr(self, cmd)(message, *data[2:])
+        admin_cmd = 'admin_' + cmd
+        handler = None
+
+        # Check admin cmd
+        if hasattr(self, admin_cmd):
+            if message.author.id != self._admin_id:
+                log.warning('Nope, not an admin')
+            else:
+                handler = getattr(self, admin_cmd)
+
+        # Check regular cmd
+        if not handler and hasattr(self, cmd):
+            handler = getattr(self, cmd)
+
+        if not handler:
+            log.debug('no handler found')
+            return
+
+        # Go on.
+        self._commands += 1
+        await handler(message, *data[2:])
 
     async def command_help(self, message, *args):
         await self.client.send_message(
@@ -108,6 +142,25 @@ class Bot(object):
             "`played   : show your game time`\n"
             "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`"
         )
+
+    async def command_info(self, message, *args):
+        await self.client.send_message(
+            message.channel, "Your id: `%s`" % message.author.id)
+
+    async def admin_command_add(self, message, *args):
+        log.info(args)
+        if len(args) <= 2:
+            return
+
+        # TODO: Handle cmd args with regexp
+        user = args[0]
+        game = args[1]
+        add_time = int(args[2])
+
+        old_time = self.counter.get(user).get(game, 0)
+        self.counter.put(user, game, old_time + add_time)
+
+        await self.client.send_message(message.channel, "done :)")
 
     async def command_played(self, message, *args):
         msg = ''
