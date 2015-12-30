@@ -154,8 +154,8 @@ class Bot(object):
 
         # TODO: Handle cmd args with regexp
         user = args[0]
-        game = args[1]
-        add_time = int(args[2])
+        game = ' '.join(args[1:-1])
+        add_time = int(args[-1])
 
         old_time = self.counter.get(user).get(game, 0)
         self.counter.put(user, game, old_time + add_time)
