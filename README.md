@@ -9,7 +9,7 @@ A port of my other bot [gobot](https://github.com/gdraynz/gobot) in python, a la
  
 ## Launch it
 
-All you need is a `conf.json` file containing :
+All you need is a `conf.json` file on the same level as `bot.py` containing :
 ```json
 {
   "email": "my@email.com",
@@ -25,7 +25,7 @@ python3.5 bot.py
 or launch it in background :
 ```bash
 python3.5 bot.py -l bot.log & # Start the bot and logs into 'bot.log'
-echo $? > bot.pid # Store its pid in 'bot.pid' file
+echo $! > bot.pid # Store its pid in 'bot.pid' file
 ...
 kill `cat bot.pid` # Kill the bot
 ```
