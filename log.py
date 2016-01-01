@@ -15,12 +15,6 @@ LOGGING_CONF = {
             "class": "logging.FileHandler",
             "formatter": "long",
             "filename": "bot.log"
-        },
-        "loop_stderr": {
-            "class": "logging.StreamHandler",
-            "formatter": "long",
-            "stream": "ext://sys.stderr",
-            "level": "ERROR"
         }
     },
     "root": {
@@ -29,7 +23,6 @@ LOGGING_CONF = {
     },
     "loggers": {
         "asyncio": {
-            "handlers": ["loop_stderr"],
             "level": "WARNING"
         },
         "aiohttp.web": {
