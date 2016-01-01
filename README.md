@@ -15,7 +15,7 @@ All you need is a `conf.json` file on the same level as `bot.py` containing :
   "email": "my@email.com",
   "password": "my_password",
   "admin_id": "0123456789",
-  "prefix": "!my_prefix"
+  "prefix": "my_prefix"
 }
 ```
 Then launch the bot :
@@ -29,6 +29,7 @@ echo $! > bot.pid # Store its pid in 'bot.pid' file
 ...
 kill `cat bot.pid` # Kill the bot
 ```
+The bot will respond to every message which begin with `my_prefix` (try `my_prefix help`)
 
 ## To do
 
