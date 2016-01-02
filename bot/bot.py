@@ -37,6 +37,7 @@ class Bot(object):
 
         "music": {
             "whitelist": ["user_id_1", "user_id_2"],
+            "avconv": false,
 
             # Optional, defaulted to 'opus'
             "opus": "opus shared library"
@@ -57,7 +58,10 @@ class Bot(object):
 
         try:
             self.music_player = MusicPlayer(
-                self.client, opus=self.conf['music'].get('opus'), loop=loop)
+                self.client,
+                avconv=self.conf['music']['avconv'],
+                opus=self.conf['music'].get('opus'),
+                loop=loop)
         except OSError as exc:
             log.exception(exc)
             log.critical('Music player no initialized (opus might be missing)')
