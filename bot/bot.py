@@ -33,26 +33,37 @@ class Bot(object):
         "email": "my.email@server.com",
         "password": "my_password",
         "admin_id": "id_of_the_bot_admin",
-        "prefix": "!go"
+        "prefix": "!go",
+
+        "music": {
+            "whitelist": ["user_id_1", "user_id_2"],
+
+            # Optional, defaulted to 'opus'
+            "opus": "opus shared library"
+        }
     }
     """
 
     def __init__(self):
 
         with open('conf.json', 'r') as f:
-            conf = json.loads(f.read())
-        self._email = conf['email']
-        self._password = conf['password']
-        self._admin_id = conf['admin_id']
-        self._prefix = conf['prefix']
+            self.conf = json.loads(f.read())
 
         self.client = discord.Client(loop=loop)
         self.counter = TimeCounter(loop=loop)
         self.reminder = ReminderManager(self.client, loop=loop)
-        self.music_player = MusicPlayer(self.client.voice, loop=loop)
+
+        try:
+            self.music_player = MusicPlayer(
+                opus=self.conf['music'].get('opus'), loop=loop)
+        except OSError as exc:
+            log.exception(exc)
+            log.critical('Music player no initialized (opus might be missing)')
+            self.music_player = None
 
         self.invite_regexp = re.compile(r'(?:https?\:\/\/)?discord\.gg\/(.+)')
 
+        # Websocket handlers
         self.client.event(self.on_member_update)
         self.client.event(self.on_ready)
         self.client.event(self.on_message)
@@ -61,14 +72,15 @@ class Bot(object):
         self._commands = 0
 
     async def start(self):
-        await self.client.login(self._email, self._password)
+        await self.client.login(self.conf['email'], self.conf['password'])
         await self.client.connect()
 
     async def stop(self):
         await self.client.close()
         await self.counter.close()
         await self.reminder.close()
-        await self.music_player.close()
+        if self.music_player:
+            await self.music_player.close()
 
     def stop_signal(self):
         log.info('Closing')
@@ -106,7 +118,7 @@ class Bot(object):
                     message.author, 'Joined it, thanks :)')
                 return
 
-        if not message.content.startswith(self._prefix):
+        if not message.content.startswith(self.conf['prefix']):
             return
 
         data = message.content.split(' ')
@@ -120,7 +132,7 @@ class Bot(object):
 
         # Check admin cmd
         if hasattr(self, admin_cmd):
-            if message.author.id != self._admin_id:
+            if message.author.id != self.conf['admin_id']:
                 log.warning('Nope, not an admin')
             else:
                 handler = getattr(self, admin_cmd)
@@ -139,20 +151,33 @@ class Bot(object):
 
     # Commands
 
-    async def admin_command_play(self, message, *args):
-        log.info(args)
+    async def command_play(self, message, *args):
+        if not self.music_player:
+            return
+
+        if message.author.id not in self.conf['music']['whitelist']:
+            await self.client.send_message(message.channel, "Nah, not you.")
+            return
+
         if len(args) < 2:
             return
 
         check = lambda c: c.name == args[0] and c.type == discord.ChannelType.voice
         channel = discord.utils.find(check, message.server.channels)
         if channel is None:
-            await self.send_message(message.channel, 'Cannot find a voice channel by that name.')
+            await self.client.send_message(message.channel, 'Cannot find a voice channel by that name.')
             return
 
         log.info('Joining voice channel %s', channel)
-        await self.client.join_voice_channel(channel)
-        await self.music_player.play_song(args[1])
+        voice = await self.client.join_voice_channel(channel)
+        await self.music_player.play_song(voice, args[1])
+
+    async def admin_command_add_player(self, message, *args):
+        if len(args) < 1:
+            return
+
+        self.whitelist.append(args[0])
+        await self.client.send_message(message.channel, "Done :)")
 
     async def command_help(self, message, *args):
         await self.client.send_message(
@@ -162,7 +187,8 @@ class Bot(object):
             "`stats    : show the bot's statistics`\n"
             "`source   : show the bot's source code (github)`\n"
             "`played   : show your game time`\n"
-            "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`"
+            "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`",
+            "`play <channel name> <youtube url>`"
         )
 
     async def command_info(self, message, *args):

@@ -5,28 +5,28 @@ import logging
 
 log = logging.getLogger(__name__)
 
-# Load opus shared library
-discord.opus.load_opus('opus')
-
 
 class MusicPlayer(object):
 
-    def __init__(self, voice, loop=None):
+    def __init__(self, opus='opus', loop=None):
+        # Load opus shared library
+        discord.opus.load_opus(opus)
         self.loop = loop or asyncio.get_event_loop()
-        self.voice = voice
         self.ended = asyncio.Event()
         self.player = None
 
-    async def play_song(self, url):
+    async def play_song(self, voice, url):
         if self.player:
             log.warning('Something already playing')
             return
 
         self.ended.clear()
-        log.info('Playing song from url %s on channel %s', url)
-        self.player = self.voice.create_ytdl_player(url, after=self.stop)
+        log.info('Playing song from url %s', url)
+        self.player = voice.create_ytdl_player(url, after=self.stop)
+        self.player.start()
+        log.info('Waiting for it to end...')
         await self.ended.wait()
-        await self.voice.disconnect()
+        await voice.disconnect()
 
     def resume(self):
         if self.player and not self.player.is_playing():
@@ -47,4 +47,6 @@ class MusicPlayer(object):
         self.ended.set()
 
     async def close(self):
+        if self.player:
+            self.player.stop()
         self.ended.set()
