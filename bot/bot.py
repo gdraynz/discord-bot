@@ -49,6 +49,8 @@ class Bot(object):
         with open('conf.json', 'r') as f:
             self.conf = json.loads(f.read())
 
+        self.conf['music']['whitelist'].append(self.conf['admin_id'])
+
         self.client = discord.Client(loop=loop)
         self.counter = TimeCounter(loop=loop)
         self.reminder = ReminderManager(self.client, loop=loop)
