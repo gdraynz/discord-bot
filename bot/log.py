@@ -27,6 +27,9 @@ LOGGING_CONF = {
         },
         "aiohttp.web": {
             "level": "WARNING"
+        },
+        "discord.voice_client": {
+            "level": "WARNING"
         }
     },
     "disable_existing_loggers": False

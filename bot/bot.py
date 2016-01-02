@@ -57,7 +57,7 @@ class Bot(object):
 
         try:
             self.music_player = MusicPlayer(
-                opus=self.conf['music'].get('opus'), loop=loop)
+                self.client, opus=self.conf['music'].get('opus'), loop=loop)
         except OSError as exc:
             log.exception(exc)
             log.critical('Music player no initialized (opus might be missing)')
@@ -164,15 +164,24 @@ class Bot(object):
         if len(args) < 2:
             return
 
-        check = lambda c: c.name == args[0] and c.type == discord.ChannelType.voice
+        channel_name = ' '.join(args[0:-1])
+        check = lambda c: c.name == channel_name and c.type == discord.ChannelType.voice
         channel = discord.utils.find(check, message.server.channels)
         if channel is None:
             await self.client.send_message(message.channel, 'Cannot find a voice channel by that name.')
             return
 
-        log.info('Joining voice channel %s', channel)
-        voice = await self.client.join_voice_channel(channel)
-        await self.music_player.play_song(voice, args[1])
+        self.music_player.play_song(channel, args[-1])
+
+    async def command_stop(self, message, *args):
+        if not self.music_player:
+            return
+
+        if message.author.id not in self.conf['music']['whitelist']:
+            await self.client.send_message(message.channel, "Nah, not you.")
+            return
+
+        self.music_player.stop()
 
     async def admin_command_add_player(self, message, *args):
         if len(args) < 1:

@@ -8,18 +8,25 @@ log = logging.getLogger(__name__)
 
 class MusicPlayer(object):
 
-    def __init__(self, opus='opus', loop=None):
+    def __init__(self, client, opus='opus', loop=None):
         # Load opus shared library
         discord.opus.load_opus(opus)
         self.loop = loop or asyncio.get_event_loop()
+        self.client = client
         self.ended = asyncio.Event()
         self.player = None
+        self.play_future = None
 
-    async def play_song(self, voice, url):
+    def play_song(self, channel, url):
+        self.play_future = asyncio.ensure_future(self._play_song(channel, url))
+
+    async def _play_song(self, channel, url):
         if self.player:
             log.warning('Something already playing')
             return
 
+        log.info('Joining voice channel %s', channel)
+        voice = await self.client.join_voice_channel(channel)
         self.ended.clear()
         log.info('Playing song from url %s', url)
         self.player = voice.create_ytdl_player(url, after=self.stop)
@@ -39,14 +46,16 @@ class MusicPlayer(object):
             self.player.pause()
 
     def stop(self):
-        if self.player and not self.player.is_playing():
+        if self.player and self.player.is_playing():
             log.info('Something playing, stopping it')
             self.player.stop()
+            log.info('Player stopped')
         self.player = None
-        log.info('Player stopped')
         self.ended.set()
 
     async def close(self):
         if self.player:
             self.player.stop()
         self.ended.set()
+        if self.play_future:
+            await self.play_future
