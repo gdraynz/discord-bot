@@ -10,6 +10,7 @@ from signal import SIGINT, SIGTERM
 
 from gametime import TimeCounter
 from log import LOGGING_CONF
+from music import MusicPlayer
 from reminder import ReminderManager
 
 
@@ -48,6 +49,7 @@ class Bot(object):
         self.client = discord.Client(loop=loop)
         self.counter = TimeCounter(loop=loop)
         self.reminder = ReminderManager(self.client, loop=loop)
+        self.music_player = MusicPlayer(self.client.voice, loop=loop)
 
         self.invite_regexp = re.compile(r'(?:https?\:\/\/)?discord\.gg\/(.+)')
 
@@ -66,6 +68,7 @@ class Bot(object):
         await self.client.close()
         await self.counter.close()
         await self.reminder.close()
+        await self.music_player.close()
 
     def stop_signal(self):
         log.info('Closing')
@@ -76,6 +79,8 @@ class Bot(object):
             loop.call_soon_threadsafe(loop.stop)
 
         f.add_done_callback(end)
+
+    # Websocket handlers
 
     async def on_member_update(self, old, new):
         if new.id in self.counter.playing and not new.game:
@@ -132,6 +137,23 @@ class Bot(object):
         self._commands += 1
         await handler(message, *data[2:])
 
+    # Commands
+
+    async def admin_command_play(self, message, *args):
+        log.info(args)
+        if len(args) < 2:
+            return
+
+        check = lambda c: c.name == args[0] and c.type == discord.ChannelType.voice
+        channel = discord.utils.find(check, message.server.channels)
+        if channel is None:
+            await self.send_message(message.channel, 'Cannot find a voice channel by that name.')
+            return
+
+        log.info('Joining voice channel %s', channel)
+        await self.client.join_voice_channel(channel)
+        await self.music_player.play_song(args[1])
+
     async def command_help(self, message, *args):
         await self.client.send_message(
             message.channel,
@@ -148,7 +170,6 @@ class Bot(object):
             message.channel, "Your id: `%s`" % message.author.id)
 
     async def admin_command_add(self, message, *args):
-        log.info(args)
         if len(args) <= 2:
             return
 
