@@ -50,8 +50,6 @@ class Bot(object):
         with open('conf.json', 'r') as f:
             self.conf = json.loads(f.read())
 
-        self.conf['music']['whitelist'].append(self.conf['admin_id'])
-
         self.client = discord.Client(loop=loop)
         self.counter = TimeCounter(loop=loop)
         self.reminder = ReminderManager(self.client, loop=loop)
@@ -66,6 +64,10 @@ class Bot(object):
             log.exception(exc)
             log.critical('Music player no initialized (opus might be missing)')
             self.music_player = None
+        else:
+            # Add admin in audio whitelist
+            if self.conf['admin_id'] not in self.music_player.whitelist:
+                self.music_player.add_user(self.conf['admin_id'])
 
         self.invite_regexp = re.compile(r'(?:https?\:\/\/)?discord\.gg\/(.+)')
 
@@ -161,12 +163,16 @@ class Bot(object):
         if not self.music_player:
             return
 
-        if message.author.id not in self.conf['music']['whitelist']:
+        if message.author.id not in self.media_player.whitelist:
             await self.client.send_message(message.channel, "Nah, not you.")
             return
 
         if len(args) < 2:
             return
+
+        if self.music_player.player:
+            self.music_player.stop()
+            await self.music_player.play_future
 
         channel_name = ' '.join(args[0:-1])
         check = lambda c: c.name == channel_name and c.type == discord.ChannelType.voice
@@ -181,17 +187,30 @@ class Bot(object):
         if not self.music_player:
             return
 
-        if message.author.id not in self.conf['music']['whitelist']:
+        if message.author.id not in self.media_player.whitelist:
             await self.client.send_message(message.channel, "Nah, not you.")
             return
 
         self.music_player.stop()
 
-    async def admin_command_add_player(self, message, *args):
+    async def admin_command_add_user(self, message, *args):
+        if not self.music_player:
+            return
+
         if len(args) < 1:
             return
 
-        self.whitelist.append(args[0])
+        self.music_player.add_user(args[0])
+        await self.client.send_message(message.channel, "Done :)")
+
+    async def admin_command_remove_user(self, message, *args):
+        if not self.music_player:
+            return
+
+        if len(args) < 1:
+            return
+
+        self.music_player.remove_user(args[0])
         await self.client.send_message(message.channel, "Done :)")
 
     async def command_help(self, message, *args):
@@ -202,8 +221,9 @@ class Bot(object):
             "`stats    : show the bot's statistics`\n"
             "`source   : show the bot's source code (github)`\n"
             "`played   : show your game time`\n"
-            "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`",
-            "`play <channel name> <youtube url>`"
+            "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`\n"
+            "`play <channel name> <youtube url>`\n"
+            "`stop     : Stop the music player`\n"
         )
 
     async def command_info(self, message, *args):

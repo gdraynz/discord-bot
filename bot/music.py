@@ -1,6 +1,7 @@
 import asyncio
 import discord
 import logging
+import yolodb
 
 
 log = logging.getLogger(__name__)
@@ -9,7 +10,7 @@ log = logging.getLogger(__name__)
 class MusicPlayer(object):
 
     def __init__(self, client, avconv=False, opus='opus', loop=None):
-        # Load opus shared library
+        # Load opus shared library, might fail
         discord.opus.load_opus(opus)
         self.use_avconv = avconv
         self.loop = loop or asyncio.get_event_loop()
@@ -17,6 +18,27 @@ class MusicPlayer(object):
         self.ended = asyncio.Event()
         self.player = None
         self.play_future = None
+        self.db = yolodb.load('music.db')
+
+    @property
+    def whitelist(self):
+        return self.db.get('whitelist', [])
+
+    def add_user(self, user_id):
+        """
+        Add a user to be whitelisted for audio
+        """
+        wl = self.whitelist
+        wl.append(user_id)
+        self.db.put('whitelist', wl)
+
+    def remove_user(self, user_id):
+        """
+        Remove a user from the audio whitelist
+        """
+        wl = self.whitelist
+        wl.remove(user_id)
+        self.db.put('whitelist', wl)
 
     def play_song(self, channel, url):
         if self.player:
