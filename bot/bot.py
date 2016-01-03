@@ -36,7 +36,6 @@ class Bot(object):
         "prefix": "!go",
 
         "music": {
-            "whitelist": ["user_id_1", "user_id_2"],
             "avconv": false,
 
             # Optional, defaulted to 'opus'
@@ -51,23 +50,7 @@ class Bot(object):
             self.conf = json.loads(f.read())
 
         self.client = discord.Client(loop=loop)
-        self.counter = TimeCounter(loop=loop)
-        self.reminder = ReminderManager(self.client, loop=loop)
-
-        try:
-            self.music_player = MusicPlayer(
-                self.client,
-                avconv=self.conf['music']['avconv'],
-                opus=self.conf['music'].get('opus'),
-                loop=loop)
-        except OSError as exc:
-            log.exception(exc)
-            log.critical('Music player no initialized (opus might be missing)')
-            self.music_player = None
-        else:
-            # Add admin in audio whitelist
-            if self.conf['admin_id'] not in self.music_player.whitelist:
-                self.music_player.add_user(self.conf['admin_id'])
+        self.modules = dict()
 
         self.invite_regexp = re.compile(r'(?:https?\:\/\/)?discord\.gg\/(.+)')
 
@@ -79,16 +62,55 @@ class Bot(object):
         self._start_time = datetime.now()
         self._commands = 0
 
+    def __getattribute__(self, name):
+        """
+        getattr or take it from the modules dict
+        """
+        try:
+            return super().__getattribute__(name)
+        except AttributeError as exc:
+            try:
+                return self.modules[name]
+            except KeyError:
+                raise exc
+
+    async def _add_module(self, cls, *args, **kwargs):
+        module = cls(*args, **kwargs)
+        try:
+            await module.start()
+        except Exception as exc:
+            log.error('Module %s could not start properly', cls)
+            log.error('dump: %s', exc)
+        else:
+            self.modules[cls.__name__.lower()] = module
+            log.info('Module %s successfully started', cls)
+
+    async def _stop_modules(self):
+        """
+        Stop all modules, with a timeout of 2 seconds
+        """
+        tasks = []
+        for module in self.modules.values():
+            tasks.append(asyncio.ensure_future(module.stop()))
+        done, not_done = await asyncio.wait(tasks, timeout=2)
+        if not_done:
+            log.error('Stop tasks not done: %s', not_done)
+        log.info('Modules stopped')
+
     async def start(self):
+        asyncio.ensure_future(self._add_module(TimeCounter, loop=loop))
+        asyncio.ensure_future(self._add_module(
+            ReminderManager, self.client, loop=loop
+        ))
+        asyncio.ensure_future(self._add_module(
+            MusicPlayer, self.client, **self.conf['music'], loop=loop
+        ))
         await self.client.login(self.conf['email'], self.conf['password'])
         await self.client.connect()
 
     async def stop(self):
+        await self._stop_modules()
         await self.client.close()
-        await self.counter.close()
-        await self.reminder.close()
-        if self.music_player:
-            await self.music_player.close()
 
     def stop_signal(self):
         log.info('Closing')
@@ -103,16 +125,16 @@ class Bot(object):
     # Websocket handlers
 
     async def on_member_update(self, old, new):
-        if new.id in self.counter.playing and not new.game:
-            self.counter.done_counting(new.id)
-        elif new.id not in self.counter.playing and new.game:
-            self.counter.start_counting(new.id, new.game.name)
+        if new.id in self.timecounter.playing and not new.game:
+            self.timecounter.done_counting(new.id)
+        elif new.id not in self.timecounter.playing and new.game:
+            self.timecounter.start_counting(new.id, new.game.name)
 
     async def on_ready(self):
         for server in self.client.servers:
             for member in server.members:
                 if member.game:
-                    self.counter.start_counting(member.id, member.game.name)
+                    self.timecounter.start_counting(member.id, member.game.name)
         log.info('everything ready')
 
     async def on_message(self, message):
@@ -160,19 +182,19 @@ class Bot(object):
     # Commands
 
     async def command_play(self, message, *args):
-        if not self.music_player:
+        if not self.musicplayer:
             return
 
-        if message.author.id not in self.music_player.whitelist:
+        if message.author.id not in self.musicplayer.whitelist:
             await self.client.send_message(message.channel, "Nah, not you.")
             return
 
         if len(args) < 2:
             return
 
-        if self.music_player.player:
-            self.music_player.stop()
-            await self.music_player.play_future
+        if self.musicplayer.player:
+            self.musicplayer.stop()
+            await self.musicplayer.play_future
 
         channel_name = ' '.join(args[0:-1])
         check = lambda c: c.name == channel_name and c.type == discord.ChannelType.voice
@@ -181,36 +203,36 @@ class Bot(object):
             await self.client.send_message(message.channel, 'Cannot find a voice channel by that name.')
             return
 
-        self.music_player.play_song(channel, args[-1])
+        self.musicplayer.play_song(channel, args[-1])
 
     async def command_stop(self, message, *args):
-        if not self.music_player:
+        if not self.musicplayer:
             return
 
-        if message.author.id not in self.music_player.whitelist:
+        if message.author.id not in self.musicplayer.whitelist:
             await self.client.send_message(message.channel, "Nah, not you.")
             return
 
-        self.music_player.stop()
+        self.musicplayer.stop()
 
     async def admin_command_add_user(self, message, *args):
-        if not self.music_player:
+        if not self.musicplayer:
             return
 
         if len(args) < 1:
             return
 
-        self.music_player.add_user(args[0])
+        self.musicplayer.add_user(args[0])
         await self.client.send_message(message.channel, "Done :)")
 
     async def admin_command_remove_user(self, message, *args):
-        if not self.music_player:
+        if not self.musicplayer:
             return
 
         if len(args) < 1:
             return
 
-        self.music_player.remove_user(args[0])
+        self.musicplayer.remove_user(args[0])
         await self.client.send_message(message.channel, "Done :)")
 
     async def command_help(self, message, *args):
@@ -239,18 +261,17 @@ class Bot(object):
         game = ' '.join(args[1:-1])
         add_time = int(args[-1])
 
-        old_time = self.counter.get(user).get(game, 0)
-        self.counter.put(user, game, old_time + add_time)
+        old_time = self.timecounter.get(user).get(game, 0)
+        self.timecounter.put(user, game, old_time + add_time)
 
         await self.client.send_message(message.channel, "done :)")
 
     async def command_played(self, message, *args):
         msg = ''
-        played = self.counter.get(message.author.id)
+        played = self.timecounter.get(message.author.id)
 
         if played:
             msg += "As far as i'm aware, you played:\n"
-            # msg += "Since %s, you played:\n" % get_time_string(self.counter.starttime)
             for game, time in played.items():
                 msg += '`%s : %s`\n' % (game, get_time_string(time))
         else:
@@ -266,7 +287,7 @@ class Bot(object):
         time = args[0]
         msg = ' '.join(args[1:]) if len(args) >= 2 else 'ping!'
 
-        if self.reminder.new(message.author.id, time, msg):
+        if self.remindermanager.new(message.author.id, time, msg):
             response = 'Aight! I will ping you in %s' % time
         else:
             response = 'I could not understand that :('
@@ -287,7 +308,7 @@ class Bot(object):
         msg += '`Uptime            : %s`\n' % get_time_string((datetime.now() - self._start_time).total_seconds())
         msg += '`Users in touch    : %s in %s servers`\n' % (users, len(self.client.servers))
         msg += '`Commands answered : %d`\n' % self._commands
-        msg += '`Users playing     : %d`\n' % len(self.counter.playing)
+        msg += '`Users playing     : %d`\n' % len(self.timecounter.playing)
         await self.client.send_message(message.channel, msg)
 
 

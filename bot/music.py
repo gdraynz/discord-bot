@@ -10,9 +10,8 @@ log = logging.getLogger(__name__)
 class MusicPlayer(object):
 
     def __init__(self, client, avconv=False, opus='opus', loop=None):
-        # Load opus shared library, might fail
-        discord.opus.load_opus(opus)
         self.use_avconv = avconv
+        self.opus_library = opus
         self.loop = loop or asyncio.get_event_loop()
         self.client = client
         self.ended = asyncio.Event()
@@ -23,6 +22,18 @@ class MusicPlayer(object):
     @property
     def whitelist(self):
         return self.db.get('whitelist', [])
+
+    async def start(self):
+        # Load opus shared library, might fail
+        discord.opus.load_opus(self.opus_library)
+
+    async def stop(self):
+        if self.player:
+            self.player.stop()
+        self.ended.set()
+        if self.play_future:
+            await self.play_future
+        await self.db.close()
 
     def add_user(self, user_id):
         """
@@ -64,27 +75,20 @@ class MusicPlayer(object):
         await self.ended.wait()
         await voice.disconnect()
 
-    def resume(self):
+    def resume_player(self):
         if self.player and not self.player.is_playing():
             log.info('Resuming paused player')
             self.player.resume()
 
-    def pause(self):
+    def pause_player(self):
         if self.player and self.player.is_playing():
             log.info('Pausing player')
             self.player.pause()
 
-    def stop(self):
+    def stop_player(self):
         if self.player and self.player.is_playing():
             log.info('Something playing, stopping it')
             self.player.stop()
             log.info('Player stopped')
         self.player = None
         self.ended.set()
-
-    async def close(self):
-        if self.player:
-            self.player.stop()
-        self.ended.set()
-        if self.play_future:
-            await self.play_future

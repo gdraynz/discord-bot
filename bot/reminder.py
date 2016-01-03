@@ -49,7 +49,14 @@ class ReminderManager(object):
         self.loop = loop or asyncio.get_event_loop()
         self.db = yolodb.load('reminder.db')
         self._regex = re.compile(r'(?:(?P<days>\d+)d)?(?:(?P<hours>\d+)h)?(?:(?P<minutes>\d+)m)?(?:(?P<seconds>\d+)s)?')
-        self._reload()
+
+    async def start(self):
+        for user in self.db.all.values():
+            for reminder in user.values():
+                self._prepare_reminder(Reminder.from_dict(**reminder))
+
+    async def stop(self):
+        await self.db.close()
 
     def new(self, author_id, strtime, message):
         """
@@ -109,11 +116,3 @@ class ReminderManager(object):
             self._pop_reminder(reminder.author.id, reminder.uid)
 
         self.loop.call_later(delay, send)
-
-    def _reload(self):
-        for user in self.db.all.values():
-            for reminder in user.values():
-                self._prepare_reminder(Reminder.from_dict(**reminder))
-
-    async def close(self):
-        await self.db.close()

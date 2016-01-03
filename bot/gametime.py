@@ -17,6 +17,17 @@ class TimeCounter(object):
             self.db.put('start_time', int(datetime.now().timestamp()))
         self.playing = dict()
 
+    async def start(self):
+        pass
+
+    async def stop(self):
+        await self.db.close()
+        if self.playing:
+            tasks = [p['task'] for p in self.playing.values()]
+            for p in self.playing.values():
+                p['event'].set()
+            await asyncio.wait(tasks, timeout=2)
+
     @property
     def starttime(self):
         return int(datetime.now().timestamp()) - self.db.get('start_time')
@@ -53,11 +64,3 @@ class TimeCounter(object):
     def done_counting(self, user_id):
         if user_id in self.playing:
             self.playing[user_id]['event'].set()
-
-    async def close(self):
-        await self.db.close()
-        if self.playing:
-            tasks = [p['task'] for p in self.playing.values()]
-            for p in self.playing.values():
-                p['event'].set()
-            await asyncio.wait(tasks, timeout=2)
