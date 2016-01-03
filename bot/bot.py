@@ -163,7 +163,7 @@ class Bot(object):
         if not self.music_player:
             return
 
-        if message.author.id not in self.media_player.whitelist:
+        if message.author.id not in self.music_player.whitelist:
             await self.client.send_message(message.channel, "Nah, not you.")
             return
 
@@ -187,7 +187,7 @@ class Bot(object):
         if not self.music_player:
             return
 
-        if message.author.id not in self.media_player.whitelist:
+        if message.author.id not in self.music_player.whitelist:
             await self.client.send_message(message.channel, "Nah, not you.")
             return
 
