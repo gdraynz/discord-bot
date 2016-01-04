@@ -21,10 +21,6 @@ loop = asyncio.get_event_loop()
 
 class Command(object):
 
-    """
-    regexp must be a regexp object (re.compile(...))
-    """
-
     def __init__(self, name, handler, admin=False, regexp=r''):
         self.name = name
         self.admin = admin
