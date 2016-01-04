@@ -12,17 +12,11 @@ from gametime import TimeCounter
 from log import LOGGING_CONF
 from music import MusicPlayer
 from reminder import ReminderManager
+from utils import get_time_string
 
 
 log = logging.getLogger(__name__)
 loop = asyncio.get_event_loop()
-
-
-def get_time_string(seconds):
-    hours = seconds / 3600
-    minutes = (seconds / 60) % 60
-    seconds = seconds % 60
-    return '%0.2d:%02d:%02d' % (hours, minutes, seconds)
 
 
 class Command(object):
@@ -87,12 +81,10 @@ class Bot(object):
         # Main parts of the bot
         self.client = discord.Client(loop=loop)
         self.modules = dict()
+        self.invite_regexp = re.compile(r'(?:https?\:\/\/)?discord\.gg\/(.+)')
 
         # Store commands
         self.commands = dict()
-        self.admin_commands = dict()
-
-        self.invite_regexp = re.compile(r'(?:https?\:\/\/)?discord\.gg\/(.+)')
 
         # Websocket handlers
         self.client.event(self.on_member_update)
@@ -102,23 +94,8 @@ class Bot(object):
         self.add_command('stats', self._stats)
         self.add_command('help', self._help)
         self.add_command('info', self._info)
-        # self.add_command('reminder', self._reminder)
 
-        # Gametime
-        self.add_command('played', self._played)
-        # self.add_command('add', self._add_gametime)
-
-        # Music Player
-        self.add_command(
-            'play', self._play_song,
-            regexp=r'(?P<channel>.+) (?P<url>https:\/\/www.youtube.com\/watch\?v=.+)')
-        self.add_command('stop', self._stop_song)
-        self.add_command(
-            'add_user', self._add_user,
-            admin=True, regexp=r'(?P<user_id>\d+)')
-        self.add_command(
-            'remove_user', self._remove_user,
-            admin=True, regexp=r'(?P<user_id>\d+)')
+        # Other commands are added in their own module (calling bot's method)
 
         self._start_time = datetime.now()
         self._commands = 0
@@ -139,6 +116,12 @@ class Bot(object):
         cmd = Command(name, handler, admin=admin, regexp=regexp)
         self.commands[name] = cmd
         log.info('Added command %s', cmd)
+
+    def remove_command(self, name):
+        try:
+            del self.commands[name]
+        except KeyError:
+            log.error('No such command: %s', name)
 
     async def _add_module(self, cls, *args, **kwargs):
         module = cls(*args, **kwargs)
@@ -164,12 +147,10 @@ class Bot(object):
         log.info('Modules stopped')
 
     async def start(self):
-        asyncio.ensure_future(self._add_module(TimeCounter, loop=loop))
+        asyncio.ensure_future(self._add_module(TimeCounter, self, loop=loop))
+        asyncio.ensure_future(self._add_module(ReminderManager, self, loop=loop))
         asyncio.ensure_future(self._add_module(
-            ReminderManager, self.client, loop=loop
-        ))
-        asyncio.ensure_future(self._add_module(
-            MusicPlayer, self.client, **self.conf['music'], loop=loop
+            MusicPlayer, self, **self.conf['music'], loop=loop
         ))
         await self.client.login(self.conf['email'], self.conf['password'])
         await self.client.connect()
@@ -191,6 +172,9 @@ class Bot(object):
     # Websocket handlers
 
     async def on_member_update(self, old, new):
+        if not self.timecounter:
+            log.debug('timecounter not initialized')
+            return
         if new.id in self.timecounter.playing and not new.game:
             self.timecounter.done_counting(new.id)
         elif new.id not in self.timecounter.playing and new.game:
@@ -238,46 +222,6 @@ class Bot(object):
 
     # Commands
 
-    async def _play_song(self, message, url, channel):
-        if not self.musicplayer:
-            return
-
-        if self.musicplayer.player:
-            self.musicplayer.stop()
-            await self.musicplayer.play_future
-
-        check = lambda c: c.name == channel and c.type == discord.ChannelType.voice
-        channel = discord.utils.find(check, message.server.channels)
-        if channel is None:
-            await self.client.send_message(message.channel, 'Cannot find a voice channel by that name.')
-            return
-
-        self.musicplayer.play_song(channel, url)
-
-    async def _stop_song(self, message):
-        if not self.musicplayer:
-            return
-
-        if message.author.id not in self.musicplayer.whitelist:
-            await self.client.send_message(message.channel, "Nah, not you.")
-            return
-
-        self.musicplayer.stop()
-
-    async def _add_user(self, message, user_id):
-        if not self.musicplayer:
-            return
-
-        self.musicplayer.add_user(user_id)
-        await self.client.send_message(message.channel, "Done :)")
-
-    async def _remove_user(self, message, user_id):
-        if not self.musicplayer:
-            return
-
-        self.musicplayer.remove_user(user_id)
-        await self.client.send_message(message.channel, "Done :)")
-
     async def _help(self, message):
         await self.client.send_message(
             message.channel,
@@ -294,48 +238,6 @@ class Bot(object):
     async def _info(self, message):
         await self.client.send_message(
             message.channel, "Your id: `%s`" % message.author.id)
-
-    async def _add_gametime(self, message, user_id, game, time):
-        if len(args) <= 2:
-            return
-
-        # TODO: Handle cmd args with regexp
-        user = args[0]
-        game = ' '.join(args[1:-1])
-        add_time = int(args[-1])
-
-        old_time = self.timecounter.get(user).get(game, 0)
-        self.timecounter.put(user, game, old_time + add_time)
-
-        await self.client.send_message(message.channel, "done :)")
-
-    async def _played(self, message):
-        msg = ''
-        played = self.timecounter.get(message.author.id)
-
-        if played:
-            msg += "As far as i'm aware, you played:\n"
-            for game, time in played.items():
-                msg += '`%s : %s`\n' % (game, get_time_string(time))
-        else:
-            msg = "I don't remember you playing anything :("
-
-        await self.client.send_message(message.channel, msg)
-
-    async def _reminder(self, message):
-        if not args:
-            return
-
-        # New reminder
-        time = args[0]
-        msg = ' '.join(args[1:]) if len(args) >= 2 else 'ping!'
-
-        if self.remindermanager.new(message.author.id, time, msg):
-            response = 'Aight! I will ping you in %s' % time
-        else:
-            response = 'I could not understand that :('
-
-        await self.client.send_message(message.channel, response)
 
     async def _source(self, message):
         await self.client.send_message(

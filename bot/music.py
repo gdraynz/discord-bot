@@ -9,15 +9,15 @@ log = logging.getLogger(__name__)
 
 class MusicPlayer(object):
 
-    def __init__(self, client, avconv=False, opus='opus', loop=None):
+    def __init__(self, bot, avconv=False, opus='opus', loop=None):
         self.use_avconv = avconv
         self.opus_library = opus
         self.loop = loop or asyncio.get_event_loop()
-        self.client = client
+        self.bot = bot
         self.ended = asyncio.Event()
         self.player = None
         self.play_future = None
-        self.db = yolodb.load('music.db')
+        self.db = None
 
     @property
     def whitelist(self):
@@ -26,6 +26,18 @@ class MusicPlayer(object):
     async def start(self):
         # Load opus shared library, might fail
         discord.opus.load_opus(self.opus_library)
+        self.db = yolodb.load('music.db', load_now=False)
+        self.bot.add_command(
+            'play', self._command_play_song,
+            regexp=r'^(?P<channel>.+) '
+                   r'(?P<url>https:\/\/www.youtube.com\/watch\?v=.+)')
+        self.bot.add_command('stop', self._command_stop_song)
+        self.bot.add_command(
+            'add_user', self._command_add_user,
+            admin=True, regexp=r'^(?P<user_id>\d+)')
+        self.bot.add_command(
+            'remove_user', self._command_remove_user,
+            admin=True, regexp=r'^(?P<user_id>\d+)')
 
     async def stop(self):
         if self.player:
@@ -34,6 +46,36 @@ class MusicPlayer(object):
         if self.play_future:
             await self.play_future
         await self.db.close()
+
+    async def _command_play_song(self, message, url, channel):
+        if self.player:
+            self.stop()
+            await self.play_future
+
+        check = lambda c: c.name == channel and c.type == discord.ChannelType.voice
+        channel = discord.utils.find(check, message.server.channels)
+        if channel is None:
+            await self.bot.client.send_message(
+                message.channel,
+                'Does that channel even exist ? :|')
+            return
+
+        self.play_song(channel, url)
+
+    async def _command_stop_song(self, message):
+        if message.author.id not in self.whitelist:
+            await self.bot.client.send_message(message.channel, "Nah, not you.")
+            return
+
+        self.musicplayer.stop()
+
+    async def _command_add_user(self, message, user_id):
+        self.add_user(user_id)
+        await self.bot.client.send_message(message.channel, "Done :)")
+
+    async def _command_remove_user(self, message, user_id):
+        self.remove_user(user_id)
+        await self.bot.client.send_message(message.channel, "Done :)")
 
     def add_user(self, user_id):
         """
@@ -64,7 +106,7 @@ class MusicPlayer(object):
             return
 
         log.info('Joining voice channel %s', channel)
-        voice = await self.client.join_voice_channel(channel)
+        voice = await self.bot.client.join_voice_channel(channel)
         self.ended.clear()
         log.info('Playing song from url %s', url)
         ydl_opts = {'logger': log}

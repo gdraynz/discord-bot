@@ -44,46 +44,61 @@ class Reminder(object):
 
 class ReminderManager(object):
 
-    def __init__(self, client, loop=None):
-        self.client = client
+    def __init__(self, bot, loop=None):
+        self.bot = bot
         self.loop = loop or asyncio.get_event_loop()
         self.db = yolodb.load('reminder.db')
-        self._regex = re.compile(r'(?:(?P<days>\d+)d)?(?:(?P<hours>\d+)h)?(?:(?P<minutes>\d+)m)?(?:(?P<seconds>\d+)s)?')
 
     async def start(self):
         for user in self.db.all.values():
             for reminder in user.values():
                 self._prepare_reminder(Reminder.from_dict(**reminder))
 
+        self.bot.add_command(
+            'reminder', self._command,
+            regexp=r'^(?:(?P<days>\d+)d)?'
+                   r'(?:(?P<hours>\d+)h)?'
+                   r'(?:(?P<minutes>\d+)m)?'
+                   r'(?:(?P<seconds>\d+)s)?'
+                   r'(?: (?P<remind>.+))?')
+
     async def stop(self):
         await self.db.close()
+        self.bot.remove_command('reminder')
 
-    def new(self, author_id, strtime, message):
+    async def _command(self, message, remind=None,
+                       days=None, hours=None, minutes=None, seconds=None):
+        """
+        Reminder command:
+        > prefix reminder 1d2h3m4s [message]
+        """
+        kwargs = {}
+        if days:
+            kwargs['days'] = int(days)
+        if hours:
+            kwargs['hours'] = int(hours)
+        if minutes:
+            kwargs['minutes'] = int(minutes)
+        if seconds:
+            kwargs['seconds'] = int(seconds)
+
+        log.debug('reminder kwargs: %s', kwargs)
+
+        # Convert it to a unix timestamp
+        at_time = int((datetime.now() + timedelta(**kwargs)).timestamp())
+        msg = remind or 'ping!'
+
+        if self.remindermanager.new(message.author.id, at_time, msg):
+            response = 'Aight! I will ping you :)'
+        else:
+            response = 'I could not understand that :('
+
+        await self.client.send_message(message.channel, response)
+
+    def new(self, author_id, at_time, message):
         """
         Take the raw (0d0h0m0s) message and convert it into a reminder
         """
-        m = self._regex.match(strtime)
-        if not m:
-            log.warning('Reminder regex did not match')
-            return False
-
-        kwargs = {}
-        if m.group('days'):
-            kwargs['days'] = int(m.group('days'))
-        if m.group('hours'):
-            kwargs['hours'] = int(m.group('hours'))
-        if m.group('minutes'):
-            kwargs['minutes'] = int(m.group('minutes'))
-        if m.group('seconds'):
-            kwargs['seconds'] = int(m.group('seconds'))
-
-        if not kwargs:
-            return
-
-        # Get the timedelta
-        delay = timedelta(**kwargs)
-        # Convert it to a unix timestamp
-        at_time = int((datetime.now() + delay).timestamp())
         # Create a uid (because why not)
         uid = str(uuid4())[:8]
 
@@ -110,7 +125,7 @@ class ReminderManager(object):
         log.info('Reminder will be sent in %d seconds', delay)
 
         def send():
-            asyncio.ensure_future(self.client.send_message(
+            asyncio.ensure_future(self.bot.client.send_message(
                 reminder.author, '`Reminder` ' + reminder.message
             ))
             self._pop_reminder(reminder.author.id, reminder.uid)

@@ -1,8 +1,9 @@
 import asyncio
 from datetime import datetime
 import logging
-
 import yolodb
+
+from utils import get_time_string
 
 
 log = logging.getLogger(__name__)
@@ -10,15 +11,20 @@ log = logging.getLogger(__name__)
 
 class TimeCounter(object):
 
-    def __init__(self, loop=None):
+    def __init__(self, bot, loop=None):
+        self.bot = bot
         self.loop = loop or asyncio.get_event_loop()
-        self.db = yolodb.load('gametime.db')
+        self.db = yolodb.load('gametime.db', load_now=False)
         if not self.db.get('start_time'):
             self.db.put('start_time', int(datetime.now().timestamp()))
         self.playing = dict()
 
     async def start(self):
-        pass
+        self.bot.add_command('played', self._played_command)
+        self.bot.add_command(
+            'add', self._add_command,
+            admin=True,
+            regexp=r'^(?P<user_id>\d+) (?P<game>.+) (?P<time>\d+)')
 
     async def stop(self):
         await self.db.close()
@@ -27,10 +33,33 @@ class TimeCounter(object):
             for p in self.playing.values():
                 p['event'].set()
             await asyncio.wait(tasks, timeout=2)
+        self.bot.remove_command('played')
+        self.bot.remove_command('add')
 
     @property
     def starttime(self):
         return int(datetime.now().timestamp()) - self.db.get('start_time')
+
+    async def _played_command(self, message):
+        msg = ''
+        played = self.get(message.author.id)
+
+        if played:
+            msg += "As far as i'm aware, you played:\n"
+            for game, time in played.items():
+                msg += '`%s : %s`\n' % (game, get_time_string(time))
+        else:
+            msg = "I don't remember you playing anything :("
+
+        await self.bot.client.send_message(message.channel, msg)
+
+    async def _add_command(self, message, user_id, game, time):
+        time = int(time)
+
+        old_time = self.get(user_id).get(game, 0)
+        self.put(user_id, game, old_time + time)
+
+        await self.bot.client.send_message(message.channel, "done :)")
 
     def get(self, user_id):
         return self.db.get(user_id, {})
