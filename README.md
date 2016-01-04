@@ -6,7 +6,7 @@ A port of my other bot [gobot](https://github.com/gdraynz/gobot) in python, a la
 
 * `!go played` shows your total game time
 * `!go reminder <(w)d(x)h(y)m(z)s> [message]` reminds you of something in the given time
-* `!go play Voice channel name https://www.youtube.com/watch?v=dQw4w9WgXcQ` play the youtube audio in the given voice channel
+* `!go play Voice channel name https://www.youtube.com/watch?v=3gxNW2Ulpwk` play the youtube audio in the given voice channel
 * `!go stop` stop the audio
 
 ## Launch it
