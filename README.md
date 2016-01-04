@@ -5,8 +5,10 @@ A port of my other bot [gobot](https://github.com/gdraynz/gobot) in python, a la
 ## Features
 
 * `!go played` shows your total game time
-* `!go reminder` reminds you of something in some time
- 
+* `!go reminder <(w)d(x)h(y)m(z)s> [message]` reminds you of something in the given time
+* `!go play Voice channel name https://www.youtube.com/watch?v=dQw4w9WgXcQ` play the youtube audio in the given voice channel
+* `!go stop` stop the audio
+
 ## Launch it
 
 All you need is a `conf.json` file on the same level as `bot.py` containing :
@@ -15,7 +17,11 @@ All you need is a `conf.json` file on the same level as `bot.py` containing :
   "email": "my@email.com",
   "password": "my_password",
   "admin_id": "0123456789",
-  "prefix": "my_prefix"
+  "prefix": "my_prefix",
+  "music": {
+    "avconv": false,
+    "opus": "path_to_opus_lib"
+  }
 }
 ```
 Then launch the bot :
