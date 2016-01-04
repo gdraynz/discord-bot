@@ -48,6 +48,7 @@ class MusicPlayer(object):
         await self.db.close()
 
     async def _command_play_song(self, message, url, channel):
+        """<voice channel> <youtube url>"""
         if self.player:
             self.stop()
             await self.play_future
@@ -63,6 +64,7 @@ class MusicPlayer(object):
         self.play_song(channel, url)
 
     async def _command_stop_song(self, message):
+        """stop the currently playing song"""
         if message.author.id not in self.whitelist:
             await self.bot.client.send_message(message.channel, "Nah, not you.")
             return

@@ -33,6 +33,7 @@ class Command(object):
             log.warning('A command must be a coroutine')
             handler = asyncio.coroutine(handler)
         self.handler = handler
+        self.help = handler.__doc__ or ''
 
     def __str__(self):
         return '<Command {}: admin={}, regexp={}>'.format(
@@ -94,6 +95,7 @@ class Bot(object):
         self.add_command('stats', self._stats)
         self.add_command('help', self._help)
         self.add_command('info', self._info)
+        self.add_command('source', self._source)
 
         # Other commands are added in their own module (calling bot's method)
 
@@ -112,9 +114,9 @@ class Bot(object):
             except KeyError:
                 raise exc
 
-    def add_command(self, name, handler, admin=False, regexp=r''):
-        cmd = Command(name, handler, admin=admin, regexp=regexp)
-        self.commands[name] = cmd
+    def add_command(self, *args, **kwargs):
+        cmd = Command(*args, **kwargs)
+        self.commands[cmd.name] = cmd
         log.info('Added command %s', cmd)
 
     def remove_command(self, name):
@@ -223,28 +225,29 @@ class Bot(object):
     # Commands
 
     async def _help(self, message):
-        await self.client.send_message(
-            message.channel,
-            "Available commands, all preceded by `!go`:\n"
-            "`help     : show this help message`\n"
-            "`stats    : show the bot's statistics`\n"
-            "`source   : show the bot's source code (github)`\n"
-            "`played   : show your game time`\n"
-            "`reminder : remind you of something in <(w)d(x)h(y)m(z)s>`\n"
-            "`play <channel name> <youtube url>`\n"
-            "`stop     : Stop the music player`\n"
-        )
+        """print the help message"""
+        msg = 'Available commands, all preceded by `%s`:\n' % self.conf['prefix']
+        for command in self.commands.values():
+            if command.admin:
+                continue
+            msg += '`%s' % command.name
+            msg += (' : %s`\n' % command.help) if command.help else '`\n'
+
+        await self.client.send_message(message.channel, msg)
 
     async def _info(self, message):
+        """print your id"""
         await self.client.send_message(
             message.channel, "Your id: `%s`" % message.author.id)
 
     async def _source(self, message):
+        """show the bot's github link"""
         await self.client.send_message(
             message.channel, 'https://github.com/gdraynz/discord-bot'
         )
 
     async def _stats(self, message):
+        """show the bot's general stats"""
         users = 0
         for s in self.client.servers:
             users += len(s.members)

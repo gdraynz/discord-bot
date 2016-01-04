@@ -68,10 +68,7 @@ class ReminderManager(object):
 
     async def _command(self, message, remind=None,
                        days=None, hours=None, minutes=None, seconds=None):
-        """
-        Reminder command:
-        > prefix reminder 1d2h3m4s [message]
-        """
+        """remind you of something in <(w)d(x)h(y)m(z)s>"""
         kwargs = {}
         if days:
             kwargs['days'] = int(days)

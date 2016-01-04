@@ -41,6 +41,7 @@ class TimeCounter(object):
         return int(datetime.now().timestamp()) - self.db.get('start_time')
 
     async def _played_command(self, message):
+        """show your game time"""
         msg = ''
         played = self.get(message.author.id)
 
