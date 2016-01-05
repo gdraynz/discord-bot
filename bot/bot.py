@@ -24,7 +24,7 @@ class Command(object):
     def __init__(self, name, handler, admin=False, regexp=r''):
         self.name = name
         self.admin = admin
-        self.regexp = re.compile(regexp)
+        self.regexp = re.compile(regexp) if regexp else None
         if not asyncio.iscoroutinefunction(handler):
             log.warning('A command must be a coroutine')
             handler = asyncio.coroutine(handler)

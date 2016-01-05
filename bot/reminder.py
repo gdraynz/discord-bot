@@ -85,12 +85,10 @@ class ReminderManager(object):
         at_time = int((datetime.now() + timedelta(**kwargs)).timestamp())
         msg = remind or 'ping!'
 
-        if self.remindermanager.new(message.author.id, at_time, msg):
-            response = 'Aight! I will ping you :)'
-        else:
-            response = 'I could not understand that :('
+        self.new(message.author.id, at_time, msg)
+        response = 'Aight! I will ping you :)'
 
-        await self.client.send_message(message.channel, response)
+        await self.bot.client.send_message(message.channel, response)
 
     def new(self, author_id, at_time, message):
         """

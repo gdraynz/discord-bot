@@ -69,7 +69,7 @@ class MusicPlayer(object):
             await self.bot.client.send_message(message.channel, "Nah, not you.")
             return
 
-        self.stop()
+        self.stop_player()
 
     async def _command_add_user(self, message, user_id):
         self.add_user(user_id)
