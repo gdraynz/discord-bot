@@ -60,6 +60,7 @@ class Bot(object):
         "password": "my_password",
         "admin_id": "id_of_the_bot_admin",
         "prefix": "!go",
+        "scrap_invites": false,
 
         "music": {
             "avconv": false,
@@ -78,7 +79,6 @@ class Bot(object):
         # Main parts of the bot
         self.client = discord.Client(loop=loop)
         self.modules = dict()
-        self.invite_regexp = re.compile(r'(?:https?\:\/\/)?discord\.gg\/(.+)')
 
         # Store commands
         self.commands = dict()
@@ -187,14 +187,17 @@ class Bot(object):
 
     async def on_message(self, message):
         # If invite in private message, join server
-        if message.channel.is_private:
-            match = self.invite_regexp.match(message.content)
-            if match and match.group(1):
-                await self.client.accept_invite(match.group(1))
-                log.info('Joined server, invite %s', match.group(1))
-                await self.client.send_message(
-                    message.author, 'Joined it, thanks :)')
-                return
+        if self.conf['scrap_invites']:
+            if message.channel.is_private:
+                match = re.match(
+                    r'(?:https?\:\/\/)?discord\.gg\/(.+)',
+                    message.content)
+                if match and match.group(1):
+                    await self.client.accept_invite(match.group(1))
+                    log.info('Joined server, invite %s', match.group(1))
+                    await self.client.send_message(
+                        message.author, 'Joined it, thanks :)')
+                    return
 
         if not message.content.startswith(self.conf['prefix']):
             return
