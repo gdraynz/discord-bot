@@ -151,7 +151,7 @@ class Bot(object):
             MusicPlayer, self, **self.conf['music'], loop=loop
         ))
         await self.client.login(self.conf['email'], self.conf['password'])
-        await self.client.connect()
+        asyncio.ensure_future(self.client.connect())
 
     async def stop(self):
         await self._stop_modules()
@@ -251,7 +251,8 @@ class Bot(object):
         for s in self.client.servers:
             users += len(s.members)
 
-        msg = 'General statistics:\n'
+        msg = 'General informations:\n'
+        msg += '`Admin             :` <@%s>\n' % self.conf['admin_id']
         msg += '`Uptime            : %s`\n' % get_time_string((datetime.now() - self._start_time).total_seconds())
         msg += '`Users in touch    : %s in %s servers`\n' % (users, len(self.client.servers))
         msg += '`Commands answered : %d`\n' % self._commands
