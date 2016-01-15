@@ -2,7 +2,6 @@ import asyncio
 from datetime import timedelta, datetime
 from discord.user import User
 import logging
-import re
 from uuid import uuid4
 
 import yolodb
@@ -47,9 +46,10 @@ class ReminderManager(object):
     def __init__(self, bot, loop=None):
         self.bot = bot
         self.loop = loop or asyncio.get_event_loop()
-        self.db = yolodb.load('reminder.db')
+        self.db = None
 
     async def start(self):
+        self.db = await yolodb.load('reminder.db', loop=self.loop)
         for user in self.db.all.values():
             for reminder in user.values():
                 self._prepare_reminder(Reminder.from_dict(**reminder))
@@ -100,7 +100,7 @@ class ReminderManager(object):
         reminders = self.db.get(author_id, {})
         new = Reminder(uid, author_id, message, at_time)
         reminders[uid] = new.to_dict()
-        self.db.put(author_id, reminders)
+        self.db[author_id] = reminders
         self._prepare_reminder(new)
         return True
 
@@ -113,7 +113,7 @@ class ReminderManager(object):
         if not reminders:
             self.db.pop(author_id)
         else:
-            self.db.put(author_id, reminders)
+            self.db[author_id] = reminders
 
     def _prepare_reminder(self, reminder):
         delay = (reminder.at_time - datetime.now().timestamp())
@@ -122,7 +122,7 @@ class ReminderManager(object):
         def send():
             asyncio.ensure_future(self.bot.client.send_message(
                 reminder.author, '`Reminder` ' + reminder.message
-            ))
+            ), loop=self.loop)
             self._pop_reminder(reminder.author.id, reminder.uid)
 
         self.loop.call_later(delay, send)

@@ -26,7 +26,9 @@ class MusicPlayer(object):
     async def start(self):
         # Load opus shared library, might fail
         discord.opus.load_opus(self.opus_library)
-        self.db = yolodb.load('music.db', load_now=False)
+
+        self.db = await yolodb.load('music.db', loop=self.loop)
+
         self.bot.add_command(
             'play', self._command_play_song,
             regexp=r'^(?P<channel>.+) '
@@ -85,7 +87,7 @@ class MusicPlayer(object):
         """
         wl = self.whitelist
         wl.append(user_id)
-        self.db.put('whitelist', wl)
+        self.db['whitelist'] = wl
 
     def remove_user(self, user_id):
         """
@@ -93,14 +95,15 @@ class MusicPlayer(object):
         """
         wl = self.whitelist
         wl.remove(user_id)
-        self.db.put('whitelist', wl)
+        self.db['whitelist'] = wl
 
     def play_song(self, channel, url):
         if self.player:
             log.warning('Something already playing')
             return
 
-        self.play_future = asyncio.ensure_future(self._play_song(channel, url))
+        self.play_future = asyncio.ensure_future(
+            self._play_song(channel, url), loop=self.loop)
 
     async def _play_song(self, channel, url):
         if self.player:

@@ -14,12 +14,14 @@ class TimeCounter(object):
     def __init__(self, bot, loop=None):
         self.bot = bot
         self.loop = loop or asyncio.get_event_loop()
-        self.db = yolodb.load('gametime.db', load_now=False)
-        if not self.db.get('start_time'):
-            self.db.put('start_time', int(datetime.now().timestamp()))
+        self.db = None
         self.playing = dict()
 
     async def start(self):
+        self.db = await yolodb.load('gametime.db', loop=self.loop)
+        if not self.db.get('start_time'):
+            self.db['start_time'] = int(datetime.now().timestamp())
+
         self.bot.add_command('played', self._played_command)
         self.bot.add_command(
             'add', self._add_command,
@@ -68,7 +70,7 @@ class TimeCounter(object):
     def put(self, user_id, game, time):
         played = self.db.get(user_id, {})
         played[game] = played.get(game, 0) + time
-        self.db.put(user_id, played)
+        self.db[user_id] = played
 
     async def _count_task(self, user_id, game_name):
         start = datetime.utcnow()
