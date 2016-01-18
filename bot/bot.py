@@ -151,11 +151,21 @@ class Bot(object):
             MusicPlayer, self, **self.conf['music'], loop=loop
         ))
         await self.client.login(self.conf['email'], self.conf['password'])
-        asyncio.ensure_future(self.client.connect())
+
+        try:
+            await self.client.connect()
+        except discord.ClientException as exc:
+            error = "Something broke, I'm out!\n"
+            error += '```%s```' % str(exc)
+            await self.client.send_message(
+                discord.User(id=self.conf['admin_id']),
+                error
+            )
+            self.stop_signal()
 
     async def stop(self):
         await self._stop_modules()
-        await self.client.close()
+        await self.client.logout()
 
     def stop_signal(self):
         log.info('Closing')
