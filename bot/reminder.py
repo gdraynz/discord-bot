@@ -3,8 +3,9 @@ from datetime import timedelta, datetime
 from discord.user import User
 import logging
 from uuid import uuid4
-
 import yolodb
+
+from utils import get_time_string
 
 
 log = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class ReminderManager(object):
         self.bot = bot
         self.loop = loop or asyncio.get_event_loop()
         self.db = None
+        self.running_tasks = dict()
 
     async def start(self):
         self.db = await yolodb.load('reminder.db', loop=self.loop)
@@ -61,6 +63,10 @@ class ReminderManager(object):
                    r'(?:(?P<minutes>\d+)m)?'
                    r'(?:(?P<seconds>\d+)s)?'
                    r'(?: (?P<remind>.+))?')
+        self.bot.add_command('reminder_list', self._command_list)
+        self.bot.add_command(
+            'reminder_delete', self._command_delete,
+            regexp=r'^(?P<uid>\w{8})$')
 
     async def stop(self):
         await self.db.close()
@@ -90,13 +96,34 @@ class ReminderManager(object):
 
         await self.bot.client.send_message(message.channel, response)
 
+    async def _command_list(self, message):
+        """List your reminders"""
+        reminders = self.get_reminders(message.author.id)
+        log.info(reminders)
+        if not reminders:
+            msg = "I don't have any reminder for you!"
+        else:
+            msg = 'Here are your current reminders:\n'
+            for reminder in reminders.values():
+                in_time = reminder['at_time'] - int(datetime.now().timestamp())
+                msg += '`%s` "%s" in %s\n' % (reminder['uid'], reminder['message'], get_time_string(in_time))
+
+        await self.bot.client.send_message(message.author, msg)
+
+    async def _command_delete(self, message, uid):
+        """Remove the given reminder by uid"""
+        if uid in self.running_tasks:
+            self._pop_reminder(message.author.id, uid)
+            msg = 'Reminder deleted :)'
+        else:
+            msg = "Don't know about this one, check your list again"
+        await self.bot.client.send_message(message.channel, msg)
+
     def new(self, author_id, at_time, message):
         """
         Take the raw (0d0h0m0s) message and convert it into a reminder
         """
-        # Create a uid (because why not)
         uid = str(uuid4())[:8]
-
         reminders = self.db.get(author_id, {})
         new = Reminder(uid, author_id, message, at_time)
         reminders[uid] = new.to_dict()
@@ -114,6 +141,9 @@ class ReminderManager(object):
             self.db.pop(author_id)
         else:
             self.db[author_id] = reminders
+        if reminder_id in self.running_tasks:
+            self.running_tasks[reminder_id].cancel()
+            del self.running_tasks[reminder_id]
 
     def _prepare_reminder(self, reminder):
         delay = (reminder.at_time - datetime.now().timestamp())
@@ -125,4 +155,4 @@ class ReminderManager(object):
             ), loop=self.loop)
             self._pop_reminder(reminder.author.id, reminder.uid)
 
-        self.loop.call_later(delay, send)
+        self.running_tasks[reminder.uid] = self.loop.call_later(delay, send)

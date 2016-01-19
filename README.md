@@ -54,5 +54,4 @@ And that's it. just write `!my_prefix say Hey there!` in a channel.
 
 ## To do
 
-* Reminder management (list, delete)
 * Gametime management (at least delete, + admin tool ?)
