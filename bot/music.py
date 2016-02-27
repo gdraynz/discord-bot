@@ -115,7 +115,7 @@ class MusicPlayer(object):
         self.ended.clear()
         log.info('Playing song from url %s', url)
         ydl_opts = {'logger': log}
-        self.player = voice.create_ytdl_player(
+        self.player = await voice.create_ytdl_player(
             url, use_avconv=self.use_avconv, after=self.stop, options=ydl_opts)
         self.player.start()
         log.info('Waiting for it to end...')
