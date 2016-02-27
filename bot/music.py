@@ -52,7 +52,7 @@ class MusicPlayer(object):
     async def _command_play_song(self, message, url, channel):
         """<voice channel> <youtube url>"""
         if self.player:
-            self.stop()
+            self.stop_player()
             await self.play_future
 
         check = lambda c: c.name == channel and c.type == discord.ChannelType.voice
@@ -116,7 +116,7 @@ class MusicPlayer(object):
         log.info('Playing song from url %s', url)
         ydl_opts = {'logger': log}
         self.player = await voice.create_ytdl_player(
-            url, use_avconv=self.use_avconv, after=self.stop, options=ydl_opts)
+            url, use_avconv=self.use_avconv, after=self.stop_player, options=ydl_opts)
         self.player.start()
         log.info('Waiting for it to end...')
         await self.ended.wait()
