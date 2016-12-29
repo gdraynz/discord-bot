@@ -2,6 +2,8 @@
 
 A port of my other bot [gobot](https://github.com/gdraynz/gobot) in python, a language I'm more confortable with.
 
+:warning: Not maintained anymore, it may not work at all.
+
 ## Features
 
 * `!go played` shows your total game time
